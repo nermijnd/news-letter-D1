@@ -1,5 +1,4 @@
 # Ajoute un email par ligne (une adresse = une ligne).
 # Les lignes qui commencent par # sont ignorées.
-# Exemple :
-valentinavot44@gmail.com.com
+valentinavot44@gmail.com
 familleavot44@gmail.com
