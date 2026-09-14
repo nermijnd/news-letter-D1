@@ -1,0 +1,39 @@
+name: Newsletter hebdomadaire
+
+on:
+  schedule:
+    # 18h00 UTC le dimanche ≈ 19h/20h à Paris selon l'heure d'été/hiver.
+    # Modifie ce chiffre si tu veux une autre heure (format cron, en UTC).
+    - cron: '0 18 * * 0'
+  workflow_dispatch: {}   # permet de lancer le workflow manuellement pour tester
+
+permissions:
+  contents: write
+
+jobs:
+  send-newsletter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code du dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Générer et envoyer la newsletter
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python fetch_and_send.py
+
+      - name: Publier l'archive sur la page web
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Mise à jour automatique de la newsletter"
+          file_pattern: "docs/**"
