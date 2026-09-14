@@ -1,0 +1,5 @@
+# Ajoute un email par ligne (une adresse = une ligne).
+# Les lignes qui commencent par # sont ignorées.
+# Exemple :
+# camarade1@example.com
+# camarade2@example.com
