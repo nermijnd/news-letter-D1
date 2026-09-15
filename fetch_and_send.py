@@ -33,13 +33,30 @@ NEWS_FEEDS = {
     "Reuters (Monde)": "https://www.reutersagency.com/feed/?best-topics=world&post_type=best",
 }
 
-# Séries de données officielles de la Réserve Fédérale américaine (FRED)
+# Séries de données officielles (FRED agrège Eurostat, OCDE, FMI, Banque mondiale…)
 # Ce sont des sources primaires, considérées parmi les plus fiables au monde.
+# Valeurs directes (taux, indices) : on affiche simplement la dernière donnée publiée.
 FRED_SERIES = {
     "Inflation US (indice des prix, CPI)": "CPIAUCSL",
     "Taux de chômage US": "UNRATE",
     "Taux directeur de la Fed (Fed Funds Rate)": "FEDFUNDS",
     "Taux des bons du Trésor US à 10 ans": "DGS10",
+    "Inflation France (CPI, variation annuelle %)": "CPALTT01FRM657N",
+    "Taux de chômage France": "LRHUTTTTFRM156S",
+    "Taux de chômage Zone Euro": "LRHUTTTTEZM156S",
+    # Donnée officielle chinoise du chômage limitée (zones urbaines uniquement) ;
+    # à défaut d'API fiable pour ce chiffre, on utilise le chômage des jeunes (Banque mondiale).
+    "Taux de chômage des jeunes en Chine (15-24 ans)": "SLUEM1524ZSCHN",
+    "Taux d'intérêt long terme France (10 ans)": "IRLTLT01FRM156N",
+}
+
+# Séries de niveau du PIB réel : on calcule nous-mêmes la variation en % par rapport
+# à la période précédente, ce qui est plus fiable que de dépendre de séries de
+# "croissance" toutes faites (certaines ne sont plus mises à jour).
+GDP_SERIES = {
+    "Croissance du PIB France (trimestrielle)": "CLVMNACSCAB1GQFR",
+    "Croissance du PIB Zone Euro (trimestrielle)": "CLVMNACSCAB1GQEA19",
+    "Croissance du PIB Chine (annuelle)": "NGDPRXDCCNA",
 }
 
 MAX_ITEMS_PER_FEED = 4
@@ -99,6 +116,40 @@ def fetch_macro():
     results = {}
     for label, series_id in FRED_SERIES.items():
         date, value = fetch_fred_series(series_id)
+        results[label] = {"date": date, "value": value}
+    return results
+
+
+def fetch_fred_growth(series_id):
+    """Récupère les 2 dernières valeurs d'une série de niveau (ex: PIB) et calcule
+    la variation en % par rapport à la période précédente."""
+    if not FRED_API_KEY:
+        return None, "Clé FRED_API_KEY manquante"
+    url = "https://api.stlouisfed.org/fred/series/observations"
+    params = {
+        "series_id": series_id,
+        "api_key": FRED_API_KEY,
+        "file_type": "json",
+        "sort_order": "desc",
+        "limit": 2,
+    }
+    try:
+        r = requests.get(url, params=params, timeout=15)
+        r.raise_for_status()
+        obs = r.json()["observations"]
+        latest, previous = obs[0], obs[1]
+        latest_val = float(latest["value"])
+        previous_val = float(previous["value"])
+        growth_pct = (latest_val - previous_val) / previous_val * 100
+        return latest["date"], f"{growth_pct:+.2f} %"
+    except Exception as exc:
+        return None, f"Erreur ({exc})"
+
+
+def fetch_gdp_growth():
+    results = {}
+    for label, series_id in GDP_SERIES.items():
+        date, value = fetch_fred_growth(series_id)
         results[label] = {"date": date, "value": value}
     return results
 
@@ -213,6 +264,7 @@ def main():
 
     print("Récupération des données macro…")
     macro = fetch_macro()
+    macro.update(fetch_gdp_growth())
 
     print("Construction de l'email…")
     html_content = build_html(news, macro, today_str)
